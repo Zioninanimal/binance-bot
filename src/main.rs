@@ -10,6 +10,9 @@ enum Error {
 use reqwest::Client; 
 use serde_json::json;
 
+const BUY_THRESHOLD: f64 = 19_000.0;
+const SELL_THRESHOLD: f64 = 21_000.0;
+
 struct Bot {
   client: Client,
   api_key: String,
