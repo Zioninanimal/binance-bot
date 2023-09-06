@@ -1,91 +1,81 @@
 // Imports
-
-#[derive(Debug)] 
-enum Error {
-  Api(reqwest::Error),
-  Net(String),
-  Order(String)  
-}
-
-use reqwest::Client; 
+use reqwest::Client;
 use serde_json::json;
+use std::thread::sleep;
+use std::time::Duration;
 
 const BUY_THRESHOLD: f64 = 19_000.0;
 const SELL_THRESHOLD: f64 = 21_000.0;
 
 struct Bot {
-  client: Client,
-  api_key: String,
-  api_secret: String,  
-  holdings: f64  
+    client: Client,
+    api_key: String,
+    api_secret: String,
+    holdings: f64,
 }
 
 impl Bot {
-
-  fn new(api_key: String, api_secret: String) -> Self {
-    let client = Client::new();   
-    Bot {
-      client,
-      api_key,
-      api_secret, 
-      holdings: 0.0  
-    }
-  }
-
-  async fn get_price(&self) -> f64 {
-    // Make API request to get BTC price
-    // Parse response to get latest price
-  }
-
-  async fn buy(&mut self, amount: f64) -> Result<(), reqwest::Error> {
-    // Generate signature
-    let params = json!({
-       "symbol": "BTCUSDT",  
-       "side": "BUY",
-       "type": "MARKET",
-       "quantity": amount,
-       "timestamp": unix_timestamp()  
-    });
-    
-    let signature = sign_request(params.to_string(), self.api_secret); 
-
-    // Make POST request to create order
-    let resp = self.client.post("https://api.binance.com/api/v3/order")
-      .json(&params)
-      .header("X-MBX-APIKEY", self.api_key)
-      .send()
-      .await?;
-
-    // Handle any errors  
-    if !resp.status().is_success() {
-       // Parse error message
-       return Err(reqwest::Error::Status(resp.status()));
+    fn new(api_key: String, api_secret: String) -> Self {
+        let client = Client::new();
+        Bot {
+            client,
+            api_key,
+            api_secret,
+            holdings: 0.0,
+        }
     }
 
-    // Update holdings if successful
-    self.holdings += amount;
+    async fn get_price(&self) -> Result<f64, reqwest::Error> {
+        let response = self
+            .client
+            .get("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT")
+            .send()
+            .await?;
+        let data: serde_json::Value = response.json().await?;
+        let price = data["price"].as_str().unwrap_or("0").parse::<f64>().unwrap_or(0.0);
+        Ok(price)
+    }
 
-    Ok(())
-  }
+    async fn buy(&mut self, amount: f64) -> Result<(), reqwest::Error> {
+        // Your buy implementation here
+        // ...
 
-  // sell() method
+        // Update holdings if successful
+        self.holdings += amount;
 
-  // sign_request() helper method  
+        Ok(())
+    }
+
+    async fn sell(&mut self, amount: f64) -> Result<(), reqwest::Error> {
+        // Your sell implementation here
+        // ...
+
+        // Update holdings if successful
+        self.holdings -= amount;
+
+        Ok(())
+    }
+
+    fn sign_request(&self, data: String) -> String {
+        // Your sign_request implementation here
+        // ...
+        // Generate and return a signature based on data and api_secret
+    }
 }
 
 #[tokio::main]
 async fn main() {
-  let bot = Bot::new("abc123".into(), "xyz789".into());
-  
-  loop {
-    let price = bot.get_price().await;
+    let bot = Bot::new("abc123".into(), "xyz789".into());
 
-    if price < 10000.0 {
-      bot.buy(0.1).await; 
-    } else if price > 11000.0 {
-      bot.sell(0.05).await;
+    loop {
+        let price = bot.get_price().await.unwrap_or(0.0);
+
+        if price < BUY_THRESHOLD && bot.holdings < 100.0 {
+            bot.buy(0.1).await.ok();
+        } else if price > SELL_THRESHOLD && bot.holdings > 0.0 {
+            bot.sell(0.05).await.ok();
+        }
+
+        sleep(Duration::from_secs(60));
     }
-
-    sleep(60000);
-  }
 }
